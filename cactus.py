@@ -1,6 +1,5 @@
 #!/usr/bin/python
 import os
-from pickle import TUPLE
 from typing import Tuple
 import paramiko
 import socket
@@ -44,13 +43,17 @@ def sha1_files(filename: str) -> str:
     return sha1.hexdigest()
 
 
-def update_dict(path: str, server_path: str) -> dict:
+def update_dict(path: str, server_path: str) -> dict[str, str]:
     hashes_files = {}
+    # Walking down the directory structure
     for root, _dirs, files in os.walk(path):
         for file in files:
             file = os.path.join(root, file)
+            # key: hash of file, value: file path and name
             hashes_files[sha1_files(file)] = file
     print("scanning local files..")
+    # We write all the files and files hashes into text file, using $ sign as seperator
+    # will be puting this file on the server side later
     with open("cactus.temp.txt", "w") as f:
         f.write(f"{server_path}\n")
         for key, val in hashes_files.items():
@@ -72,9 +75,10 @@ def get_folder_struct(path: str) -> None:
 # we want to copy only the files that changed or doesn't exists on the server
 def get_remote_hashes(
     ip: str, username: str, key: str, port: int, server_path: str
-) -> Tuple(dict, SFTPClient):
+) -> Tuple(dict[str, str], SFTPClient):
 
     remote_dict = {}
+    # Initializing ssh client
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -83,19 +87,28 @@ def get_remote_hashes(
     except paramiko.SSHException:
         exit(1)
     print("ssh connection established!")
+
+    # Opening sftp connection to our server (using the ssh client)
     sftp = client.open_sftp()
+
+    # If the backup directory already exists we put the necessary files in it
+    # if not we will crate it first
     try:
         sftp.put("cactus.temp.txt", server_path + "cactus.temp.txt")
         sftp.put("to_run_on_server.py", server_path + "cactus.temp.py")
+
     except FileNotFoundError:
         client.exec_command(f"mkdir -p {server_path}")
         sftp.put("cactus.temp.txt", server_path + "cactus.temp.txt")
         sftp.put("to_run_on_server.py", server_path + "cactus.temp.py")
 
+    # pwd = target backup directory
     client.exec_command(f"cd {server_path}")
     print("geting remote hashes..")
+    # Running our server script
     _, Out, _ = client.exec_command(f"cd {server_path} && python3 cactus.temp.py")
 
+    # Reading the results and pushing them into dictionary
     for line in Out.readlines():
         split = line.split("$")
         remote_dict[split[0]] = split[1]
@@ -114,13 +127,13 @@ def progress(sent: int, to_sent: int) -> None:
     # sys.stdout.flush()
 
 
-def args() -> dict[str]:
+def args() -> dict[str, str]:
     args_dict = {}
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-e",
         "--edit_conf",
-        help="opens cactos.conf.json to edit manualy",
+        help="opens cactus.conf.json to edit manually",
         action="store_true",
     )
     args = parser.parse_args()
@@ -129,7 +142,7 @@ def args() -> dict[str]:
     parser.add_argument(
         "-s",
         "--use_saved_conf",
-        help="use defualt seved in : cactus.conf.json, (need to be in cactus directory).",
+        help="use default seved in : cactus.conf.json, (need to be in cactus directory).",
         action="store_true",
     )
     args = parser.parse_args()
@@ -157,19 +170,19 @@ def manual_paramters(OS):
     elif OS == "nt":
         key = "%SystemDrive%/Users/%UserName%/.ssh/id_rsa.pub"
     else:
-        print("os not suported, aborting")
+        print("os not supported, aborting")
         exit(-1)
 
     HOSTNAME = input("Hostname (or IP): ")
     PORT = None
     while PORT is not int:
         try:
-            PORT = int(input("Port (defualt 22): "))
+            PORT = int(input("Port (default 22): "))
             break
         except ValueError:
             print("only numbers pls..")
     USERNAME = input("User name: ")
-    KEY = input(f"Path to ssh poublic key (defult is {key}: )")
+    KEY = input(f"Path to ssh public key (defult is {key}: )")
     if not KEY:
         KEY = key
     CLIENT_PATH = input("Directory path to backup: ")
