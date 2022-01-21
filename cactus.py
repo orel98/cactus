@@ -1,5 +1,7 @@
 #!/usr/bin/python
 import os
+from pickle import TUPLE
+from typing import Tuple
 import paramiko
 import socket
 import hashlib
@@ -7,7 +9,10 @@ import sys
 import json
 import argparse
 
+from paramiko import SFTPClient
 
+
+# Checks if desired port is responding
 def ping_via_ssh_port(host: str, port: int) -> bool:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(5)
@@ -24,17 +29,22 @@ def ping_via_ssh_port(host: str, port: int) -> bool:
         return False
 
 
-def sha1_files(filename):
+# Hash function
+def sha1_files(filename: str) -> str:
     sha1 = hashlib.sha1()
+
+    # We don't want to push huge file into our memory but we need to hash all the file content
+    # so we divide it into chunks of 128 * 1024 bytes ~ 130k
     ba = bytearray(128 * 1024)
     mv = memoryview(ba)
     with open(filename, "rb", buffering=0) as f:
         for chunk in iter(lambda: f.readinto(mv), 0):
             sha1.update(mv[:chunk])
+
     return sha1.hexdigest()
 
 
-def update_dict(path, server_path) -> dict:
+def update_dict(path: str, server_path: str) -> dict:
     hashes_files = {}
     for root, _dirs, files in os.walk(path):
         for file in files:
@@ -48,7 +58,8 @@ def update_dict(path, server_path) -> dict:
     return hashes_files
 
 
-def get_folder_struct(path) -> None:
+# Getting the folder structure, we will need this in case the folder structure on the server don't match
+def get_folder_struct(path: str) -> None:
     with open("cactus.temp.txt", "a") as f:
         for root, folders_name, _ in os.walk(path):
             for folder in folders_name:
@@ -57,7 +68,12 @@ def get_folder_struct(path) -> None:
                 f.write(folder + "\n")
 
 
-def get_remote_hashes(ip, username, key, port, server_path):
+# hashing all the file in the destination (one by one), in order to compate them to the files on the client,
+# we want to copy only the files that changed or doesn't exists on the server
+def get_remote_hashes(
+    ip: str, username: str, key: str, port: int, server_path: str
+) -> Tuple(dict, SFTPClient):
+
     remote_dict = {}
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -87,7 +103,8 @@ def get_remote_hashes(ip, username, key, port, server_path):
     return remote_dict, sftp
 
 
-def progress(sent, to_sent) -> None:
+# callback function for "sftp_client.put"
+def progress(sent: int, to_sent: int) -> None:
     global total_files_size, totalsent, allready_sent
     totalsent += sent - allready_sent
     allready_sent = sent if sent / to_sent != 1 else 0
@@ -181,9 +198,7 @@ def manual_paramters(OS):
             json.dump(data, jfile, ensure_ascii=False, indent=4)
             jfile.truncate()
         print("Saved.")
-        return HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH
-    else:
-        return HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH
+    return HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH
 
 
 if __name__ == "__main__":
