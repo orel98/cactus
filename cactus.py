@@ -5,10 +5,10 @@ import socket
 import hashlib
 import sys
 import json
-import argparse         
+import argparse
 
 
-def ping_via_ssh_port(host, port) -> bool:
+def ping_via_ssh_port(host: str, port: int) -> bool:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(5)
     try:
@@ -23,14 +23,16 @@ def ping_via_ssh_port(host, port) -> bool:
     except socket.timeout:
         return False
 
+
 def sha1_files(filename):
     sha1 = hashlib.sha1()
-    ba = bytearray(128*1024)
+    ba = bytearray(128 * 1024)
     mv = memoryview(ba)
-    with open(filename, 'rb', buffering=0) as f:
-        for chunk in iter(lambda : f.readinto(mv), 0):
+    with open(filename, "rb", buffering=0) as f:
+        for chunk in iter(lambda: f.readinto(mv), 0):
             sha1.update(mv[:chunk])
     return sha1.hexdigest()
+
 
 def update_dict(path, server_path) -> dict:
     hashes_files = {}
@@ -39,19 +41,21 @@ def update_dict(path, server_path) -> dict:
             file = os.path.join(root, file)
             hashes_files[sha1_files(file)] = file
     print("scanning local files..")
-    with open("cactus.temp.txt", 'w') as f:
+    with open("cactus.temp.txt", "w") as f:
         f.write(f"{server_path}\n")
-        for key ,val in hashes_files.items():
-            f.write(key+"$"+val+"\n")
+        for key, val in hashes_files.items():
+            f.write(key + "$" + val + "\n")
     return hashes_files
 
+
 def get_folder_struct(path) -> None:
-    with open("cactus.temp.txt", 'a') as f:
+    with open("cactus.temp.txt", "a") as f:
         for root, folders_name, _ in os.walk(path):
             for folder in folders_name:
                 folder = os.path.join(root, folder)
                 folder = folder.lstrip(path)
-                f.write(folder+'\n')
+                f.write(folder + "\n")
+
 
 def get_remote_hashes(ip, username, key, port, server_path):
     remote_dict = {}
@@ -65,58 +69,74 @@ def get_remote_hashes(ip, username, key, port, server_path):
     print("ssh connection established!")
     sftp = client.open_sftp()
     try:
-        sftp.put("cactus.temp.txt", server_path+"cactus.temp.txt")
-        sftp.put("to_run_on_server.py", server_path+"cactus.temp.py")
+        sftp.put("cactus.temp.txt", server_path + "cactus.temp.txt")
+        sftp.put("to_run_on_server.py", server_path + "cactus.temp.py")
     except FileNotFoundError:
         client.exec_command(f"mkdir -p {server_path}")
-        sftp.put("cactus.temp.txt", server_path+"cactus.temp.txt")
-        sftp.put("to_run_on_server.py", server_path+"cactus.temp.py")
-    
+        sftp.put("cactus.temp.txt", server_path + "cactus.temp.txt")
+        sftp.put("to_run_on_server.py", server_path + "cactus.temp.py")
+
     client.exec_command(f"cd {server_path}")
     print("geting remote hashes..")
     _, Out, _ = client.exec_command(f"cd {server_path} && python3 cactus.temp.py")
-    
+
     for line in Out.readlines():
         split = line.split("$")
         remote_dict[split[0]] = split[1]
-    
+
     return remote_dict, sftp
+
 
 def progress(sent, to_sent) -> None:
     global total_files_size, totalsent, allready_sent
-    totalsent += sent-allready_sent
-    allready_sent = sent if sent/to_sent != 1 else 0 
-    sys.stdout.write("progress: %.2f%% \r" % (float(totalsent/total_files_size)*100))
+    totalsent += sent - allready_sent
+    allready_sent = sent if sent / to_sent != 1 else 0
+    sys.stdout.write(
+        "progress: %.2f%% \r" % (float(totalsent / total_files_size) * 100)
+    )
     # sys.stdout.flush()
+
 
 def args() -> dict[str]:
     args_dict = {}
     parser = argparse.ArgumentParser()
-    parser.add_argument("-e", "--edit_conf",
-    help="opens cactos.conf.json to edit manualy",action="store_true")
+    parser.add_argument(
+        "-e",
+        "--edit_conf",
+        help="opens cactos.conf.json to edit manualy",
+        action="store_true",
+    )
     args = parser.parse_args()
-    
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--use_saved_conf",
-    help="use defualt seved in : cactus.conf.json, (need to be in cactus directory).",action="store_true")
+    parser.add_argument(
+        "-s",
+        "--use_saved_conf",
+        help="use defualt seved in : cactus.conf.json, (need to be in cactus directory).",
+        action="store_true",
+    )
     args = parser.parse_args()
-    
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--set_ip",
-    help="set new ip and keep rest of paramaters in cactus.conf.json file",action="store_true")
+    parser.add_argument(
+        "-i",
+        "--set_ip",
+        help="set new ip and keep rest of paramaters in cactus.conf.json file",
+        action="store_true",
+    )
     args = parser.parse_args()
-    
+
     args_dict["edit_conf"] = args.edit_conf
     args_dict["set_ip"] = args.set_ip
     args_dict["use_saved_conf"] = args.use_saved_conf
-    
+
     return args_dict
 
 
 def manual_paramters(OS):
     if OS == "posix":
         key = os.path.expanduser("~") + "/.ssh/id_rsa.pub"
-        
+
     elif OS == "nt":
         key = "%SystemDrive%/Users/%UserName%/.ssh/id_rsa.pub"
     else:
@@ -142,26 +162,21 @@ def manual_paramters(OS):
     SERVER_PATH += "/" if not SERVER_PATH.endswith("/") else ""
     SERVER_PATH = "/" + SERVER_PATH if not SERVER_PATH.startswith("/") else SERVER_PATH
 
-    save_to_next_time = input("do you wish to save configuration to next time? [y/N]: ").upper()
+    save_to_next_time = input(
+        "do you wish to save configuration to next time? [y/N]: "
+    ).upper()
     if save_to_next_time == "Y":
         with open("cactus.conf.json", "w", encoding="utf-8") as jfile:
             data = {}
             data["conf"] = {}
             (
-            data["conf"]["hostname"],
-            data["conf"]["port"],
-            data["conf"]["username"],
-            data["conf"]["sshKeyPath"],
-            data["conf"]["clientDirectory"],
-            data["conf"]["serverDirectory"]
-            )=(
-            HOSTNAME,
-            PORT,
-            USERNAME,
-            KEY,
-            CLIENT_PATH,
-            SERVER_PATH
-            )
+                data["conf"]["hostname"],
+                data["conf"]["port"],
+                data["conf"]["username"],
+                data["conf"]["sshKeyPath"],
+                data["conf"]["clientDirectory"],
+                data["conf"]["serverDirectory"],
+            ) = (HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH)
             jfile.seek(0)
             json.dump(data, jfile, ensure_ascii=False, indent=4)
             jfile.truncate()
@@ -169,6 +184,7 @@ def manual_paramters(OS):
         return HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH
     else:
         return HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH
+
 
 if __name__ == "__main__":
     OS = os.name
@@ -178,28 +194,23 @@ if __name__ == "__main__":
             with open("cactus.conf.json", "r") as f:
                 conf = json.load(f)
                 conf["conf"]["hostname"] = input("IP: ")
-    
+
     if args_dict["use_defualts"]():
         if "cactus.conf.json" in os.listdir(os.getcwd()):
             with open("cactus.conf.json", "r") as f:
                 conf = json.load(f)
-            (
-                HOSTNAME,
-                PORT,
-                USERNAME,
-                KEY,
-                CLIENT_PATH,
-                SERVER_PATH
-            )=(
+            (HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH) = (
                 conf["conf"]["hostname"],
-                conf["conf"]["port"], 
+                conf["conf"]["port"],
                 conf["conf"]["username"],
                 conf["conf"]["sshKeyPath"],
                 conf["conf"]["clientDirectory"],
-                conf["conf"]["serverDirectory"]
+                conf["conf"]["serverDirectory"],
             )
         else:
-            answer = input("Cant find configuration files.. do you want to enter configuration manualy? [y/N]").upper()
+            answer = input(
+                "Cant find configuration files.. do you want to enter configuration manualy? [y/N]"
+            ).upper()
             if answer == "Y":
                 (
                     HOSTNAME,
@@ -207,38 +218,42 @@ if __name__ == "__main__":
                     USERNAME,
                     KEY,
                     CLIENT_PATH,
-                    SERVER_PATH
+                    SERVER_PATH,
                 ) = manual_paramters(OS)
             else:
                 exit(0)
 
     else:
-        (
-            HOSTNAME,
-            PORT,
-            USERNAME,
-            KEY,
-            CLIENT_PATH,
-            SERVER_PATH
-        ) = manual_paramters(OS)
+        (HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH) = manual_paramters(OS)
 
-    if ping_via_ssh_port(HOSTNAME, PORT):    
+    if ping_via_ssh_port(HOSTNAME, PORT):
         client_dict = update_dict(CLIENT_PATH, SERVER_PATH)
         get_folder_struct(CLIENT_PATH)
-        server_dict, sftp_client = get_remote_hashes(HOSTNAME, USERNAME, KEY, PORT, SERVER_PATH)
-        total_files_size = sum([os.stat(client_dict[i]).st_size for i in client_dict if i not in server_dict])
+        server_dict, sftp_client = get_remote_hashes(
+            HOSTNAME, USERNAME, KEY, PORT, SERVER_PATH
+        )
+        total_files_size = sum(
+            [
+                os.stat(client_dict[i]).st_size
+                for i in client_dict
+                if i not in server_dict
+            ]
+        )
         totalsent, allready_sent = 0, 0
         print("copying files...")
         files_count = 0
         for i in client_dict:
             if i not in server_dict:
-                sftp_client.put(client_dict[i], SERVER_PATH+(client_dict[i].lstrip(CLIENT_PATH)), callback=progress)
+                sftp_client.put(
+                    client_dict[i],
+                    SERVER_PATH + (client_dict[i].lstrip(CLIENT_PATH)),
+                    callback=progress,
+                )
                 files_count += 1
-        
+
         os.remove("cactus.temp.txt")
         sftp_client.close
         print(f"done! {files_count} files moved.")
     else:
         print("cant ping the server, aborting..")
         exit(-1)
-    
