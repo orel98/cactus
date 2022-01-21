@@ -163,7 +163,10 @@ def args() -> dict[str, str]:
     return args_dict
 
 
-def manual_paramters(OS):
+# Getting params from the user, keeping them in case the user want to save them to next time
+def manual_paramters(OS) -> tuple[str, int | None, str, str, str, str]:
+
+    # ssh key file
     if OS == "posix":
         key = os.path.expanduser("~") + "/.ssh/id_rsa.pub"
 
@@ -173,29 +176,38 @@ def manual_paramters(OS):
         print("os not supported, aborting")
         exit(-1)
 
-    HOSTNAME = input("Hostname (or IP): ")
-    PORT = None
-    while PORT is not int:
+    input_host_name = input("Hostname (or IP): ")
+    input_port = None
+    while input_port is not int:
         try:
-            PORT = int(input("Port (default 22): "))
+            input_port = int(input("Port: "))
             break
         except ValueError:
             print("only numbers pls..")
-    USERNAME = input("User name: ")
-    KEY = input(f"Path to ssh public key (defult is {key}: )")
-    if not KEY:
-        KEY = key
-    CLIENT_PATH = input("Directory path to backup: ")
-    CLIENT_PATH += "/" if not CLIENT_PATH.endswith("/") else ""
-    CLIENT_PATH = "/" + CLIENT_PATH if not CLIENT_PATH.startswith("/") else CLIENT_PATH
-    SERVER_PATH = input("Path to backup directory on the server: ")
-    SERVER_PATH += "/" if not SERVER_PATH.endswith("/") else ""
-    SERVER_PATH = "/" + SERVER_PATH if not SERVER_PATH.startswith("/") else SERVER_PATH
+    input_user_name = input("User name: ")
+    input_key = input(f"Path to ssh public key (defult is {key}: )")
+    if not input_key:
+        input_key = key
+    input_client_path = input("Directory path to backup: ")
+    input_client_path += "/" if not input_client_path.endswith("/") else ""
+    input_client_path = (
+        "/" + input_client_path
+        if not input_client_path.startswith("/")
+        else input_client_path
+    )
+    input_server_path = input("Path to backup directory on the server: ")
+    input_server_path += "/" if not input_server_path.endswith("/") else ""
+    input_server_path = (
+        "/" + input_server_path
+        if not input_server_path.startswith("/")
+        else input_server_path
+    )
 
     save_to_next_time = input(
         "do you wish to save configuration to next time? [y/N]: "
     ).upper()
     if save_to_next_time == "Y":
+        # Writing configuration to file
         with open("cactus.conf.json", "w", encoding="utf-8") as jfile:
             data = {}
             data["conf"] = {}
@@ -206,12 +218,26 @@ def manual_paramters(OS):
                 data["conf"]["sshKeyPath"],
                 data["conf"]["clientDirectory"],
                 data["conf"]["serverDirectory"],
-            ) = (HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH)
+            ) = (
+                input_host_name,
+                input_port,
+                input_user_name,
+                input_key,
+                input_client_path,
+                input_server_path,
+            )
             jfile.seek(0)
             json.dump(data, jfile, ensure_ascii=False, indent=4)
             jfile.truncate()
         print("Saved.")
-    return HOSTNAME, PORT, USERNAME, KEY, CLIENT_PATH, SERVER_PATH
+    return (
+        input_host_name,
+        input_port,
+        input_user_name,
+        input_key,
+        input_client_path,
+        input_server_path,
+    )
 
 
 if __name__ == "__main__":
@@ -223,7 +249,7 @@ if __name__ == "__main__":
                 conf = json.load(f)
                 conf["conf"]["hostname"] = input("IP: ")
 
-    if args_dict["use_defualts"]():
+    if args_dict["use_defaults"]:
         if "cactus.conf.json" in os.listdir(os.getcwd()):
             with open("cactus.conf.json", "r") as f:
                 conf = json.load(f)
@@ -237,7 +263,7 @@ if __name__ == "__main__":
             )
         else:
             answer = input(
-                "Cant find configuration files.. do you want to enter configuration manualy? [y/N]"
+                "Cant find configuration files.. do you want to enter configuration manually? [y/N]"
             ).upper()
             if answer == "Y":
                 (
